@@ -2,7 +2,7 @@
 
 use crate::{ConfigureEvm, Database, OnStateHook};
 use alloc::{boxed::Box, vec::Vec};
-use alloy_consensus::{BlockHeader, Header};
+use alloy_consensus::{BlockHeader, Header, Transaction};
 use alloy_eips::eip2718::WithEncoded;
 pub use alloy_evm::block::{BlockExecutor, BlockExecutorFactory};
 use alloy_evm::{block::ExecutableTx, Evm, EvmEnv, EvmFactory};
@@ -21,7 +21,7 @@ pub use reth_storage_errors::provider::ProviderError;
 use reth_trie_common::{updates::TrieUpdates, HashedPostState};
 use revm::{
     context::result::ExecutionResult,
-    database::{states::bundle_state::BundleRetention, BundleState, State},
+    database::{states::bundle_state::BundleRetention, BundleState, State}, primitives::GOAT_CHAIN_ID,
 };
 
 /// A type that knows how to execute a block. It is assumed to operate on a
@@ -439,7 +439,7 @@ where
     where
         DB: Database,
     {
-        BasicBlockExecutor::new(self.strategy_factory.clone(), db)
+        BasicBlockExecutor::new(self.strategy_factory.clone(), db, None)
     }
 }
 
@@ -451,14 +451,16 @@ pub struct BasicBlockExecutor<F, DB> {
     pub(crate) strategy_factory: F,
     /// Database.
     pub(crate) db: State<DB>,
+    /// Chain ID.
+    pub(crate) chain_id: u64,
 }
 
 impl<F, DB: Database> BasicBlockExecutor<F, DB> {
     /// Creates a new `BasicBlockExecutor` with the given strategy.
-    pub fn new(strategy_factory: F, db: DB) -> Self {
+    pub fn new(strategy_factory: F, db: DB, chain_id: Option<u64>) -> Self {
         let db =
             State::builder().with_database(db).with_bundle_update().without_state_clear().build();
-        Self { strategy_factory, db }
+        Self { strategy_factory, db, chain_id: chain_id.unwrap_or_default() }
     }
 }
 
@@ -476,11 +478,30 @@ where
     ) -> Result<BlockExecutionResult<<Self::Primitives as NodePrimitives>::Receipt>, Self::Error>
     {
         let mut strategy = self.strategy_factory.executor_for_block(&mut self.db, block);
+        strategy.set_chain_id(self.chain_id);
 
         strategy.apply_pre_execution_changes()?;
+
+        let mut goat_gas_fees = 0u128;
+        let basefee = strategy.evm().block().basefee;
+
         for tx in block.transactions_recovered() {
-            strategy.execute_transaction(tx)?;
+            let gas_used = strategy.execute_transaction(tx)? as u128;
+
+            // Non-case goat tx.
+            if gas_used > 0 {
+                let effective_tip_per_gas = tx.effective_tip_per_gas(basefee).unwrap_or_default();
+                let tip_fee = gas_used.saturating_mul(effective_tip_per_gas);
+                goat_gas_fees = goat_gas_fees.saturating_add(tip_fee);
+            }
         }
+
+        if self.chain_id == GOAT_CHAIN_ID {
+            let burnt_fees = (basefee as u128).saturating_mul(block.gas_used() as u128);
+            goat_gas_fees = goat_gas_fees.saturating_add(burnt_fees);
+            crate::allocate_goat_gas_fees(strategy.evm_mut().db_mut(), goat_gas_fees)?;
+        }
+
         let result = strategy.apply_post_execution_changes()?;
 
         self.db.merge_transitions(BundleRetention::Reverts);
