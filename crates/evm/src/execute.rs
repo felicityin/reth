@@ -21,7 +21,8 @@ pub use reth_storage_errors::provider::ProviderError;
 use reth_trie_common::{updates::TrieUpdates, HashedPostState};
 use revm::{
     context::result::ExecutionResult,
-    database::{states::bundle_state::BundleRetention, BundleState, State}, primitives::GOAT_CHAIN_ID,
+    database::{states::bundle_state::BundleRetention, BundleState, State},
+    primitives::goat::GOAT_CHAIN_ID,
 };
 
 /// A type that knows how to execute a block. It is assumed to operate on a
@@ -464,6 +465,10 @@ impl<F, DB: Database> BasicBlockExecutor<F, DB> {
     }
 }
 
+fn is_goat_chain(chain_id: u64) -> bool {
+    chain_id == GOAT_CHAIN_ID
+}
+
 impl<F, DB> Executor<DB> for BasicBlockExecutor<F, DB>
 where
     F: ConfigureEvm,
@@ -488,15 +493,14 @@ where
         for tx in block.transactions_recovered() {
             let gas_used = strategy.execute_transaction(tx)? as u128;
 
-            // Non-case goat tx.
-            if gas_used > 0 {
+            if is_goat_chain(self.chain_id) && !tx.is_goat_tx() {
                 let effective_tip_per_gas = tx.effective_tip_per_gas(basefee).unwrap_or_default();
                 let tip_fee = gas_used.saturating_mul(effective_tip_per_gas);
                 goat_gas_fees = goat_gas_fees.saturating_add(tip_fee);
             }
         }
 
-        if self.chain_id == GOAT_CHAIN_ID {
+        if is_goat_chain(self.chain_id) {
             let burnt_fees = (basefee as u128).saturating_mul(block.gas_used() as u128);
             goat_gas_fees = goat_gas_fees.saturating_add(burnt_fees);
             crate::allocate_goat_gas_fees(strategy.evm_mut().db_mut(), goat_gas_fees)?;
