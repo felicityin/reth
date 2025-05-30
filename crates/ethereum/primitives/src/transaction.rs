@@ -951,6 +951,8 @@ impl FromRecoveredTx<TransactionSigned> for TxEnv {
             },
             Transaction::Goat(tx) => {
                 let mut goat_tx = tx.to_owned();
+                let goat = goat_tx.decode_tx().expect("decode goat tx err");
+
                 Self {
                     module: tx.module,
                     action: tx.action,
@@ -958,9 +960,9 @@ impl FromRecoveredTx<TransactionSigned> for TxEnv {
                     data: tx.input.clone(),
                     tx_type: 0x60,
                     chain_id: Some(2345),
-                    caller: sender,
-                    kind: TxKind::Call(tx.to()),
-                    goat: Some(goat_tx.decode_tx().expect("decode goat tx err")),
+                    caller: goat.sender(),
+                    kind: TxKind::Call(goat.to()),
+                    goat: Some(goat),
                     ..Default::default()
                 }
             }
