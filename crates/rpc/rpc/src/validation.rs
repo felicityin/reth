@@ -681,6 +681,7 @@ impl From<ValidationApiError> for ErrorObject<'static> {
                     invalid_params_rpc_err(error.to_string())
                 }
                 error @ BlockExecutionError::Internal(_) => internal_rpc_err(error.to_string()),
+                error @ BlockExecutionError::Goat(_) => internal_rpc_err(error.to_string()),
             },
             ValidationApiError::Payload(err) => match err {
                 error @ NewPayloadError::Eth(_) => invalid_params_rpc_err(error.to_string()),

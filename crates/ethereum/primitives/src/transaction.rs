@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx, SignerRecoverable, TxHashRef},
     EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844, TxEip7702,
-    TxLegacy, TxType, Typed2718,
+    TxGoat, TxLegacy, TxType, Typed2718,
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
@@ -32,6 +32,7 @@ macro_rules! delegate {
             Transaction::Eip1559($tx) => $tx.$method($($arg),*),
             Transaction::Eip4844($tx) => $tx.$method($($arg),*),
             Transaction::Eip7702($tx) => $tx.$method($($arg),*),
+            Transaction::Goat($tx) => $tx.$method($($arg),*),
         }
     };
 }
@@ -89,6 +90,8 @@ pub enum Transaction {
     /// until re-assigned by the same EOA. This allows for adding smart contract functionality to
     /// the EOA.
     Eip7702(TxEip7702),
+    /// Goat system tx
+    Goat(TxGoat),
 }
 
 impl Transaction {
@@ -100,6 +103,7 @@ impl Transaction {
             Self::Eip1559(_) => TxType::Eip1559,
             Self::Eip4844(_) => TxType::Eip4844,
             Self::Eip7702(_) => TxType::Eip7702,
+            Self::Goat(_) => TxType::Goat,
         }
     }
 
@@ -111,6 +115,15 @@ impl Transaction {
             Self::Eip1559(tx) => &mut tx.input,
             Self::Eip4844(tx) => &mut tx.input,
             Self::Eip7702(tx) => &mut tx.input,
+            Self::Goat(tx) => &mut tx.input,
+        }
+    }
+
+    /// Returns [`sender`] of the transaction.
+    pub fn sender(&self) -> Option<Address> {
+        match self {
+            Self::Goat(tx) => Some(tx.sender()),
+            _ => None,
         }
     }
 }
@@ -189,6 +202,18 @@ impl alloy_consensus::Transaction for Transaction {
     fn authorization_list(&self) -> Option<&[alloy_eips::eip7702::SignedAuthorization]> {
         delegate!(self => tx.authorization_list())
     }
+
+    fn is_goat_tx(&self) -> bool {
+        delegate!(self => tx.is_goat_tx())
+    }
+
+    fn deposit(&self) -> Option<alloy_consensus::transaction::goat_types::Mint> {
+        delegate!(self => tx.deposit())
+    }
+
+    fn withdraw(&self) -> Option<alloy_consensus::transaction::goat_types::Mint> {
+        delegate!(self => tx.withdraw())
+    }
 }
 
 impl SignableTransaction<Signature> for Transaction {
@@ -260,6 +285,10 @@ impl reth_codecs::Compact for Transaction {
             TxType::Eip7702 => {
                 let (tx, buf) = TxEip7702::from_compact(buf, buf.len());
                 (Self::Eip7702(tx), buf)
+            }
+            TxType::Goat => {
+                let (tx, buf) = TxGoat::from_compact(buf, buf.len());
+                (Self::Goat(tx), buf)
             }
         }
     }
@@ -432,6 +461,18 @@ impl alloy_consensus::Transaction for TransactionSigned {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         self.transaction.authorization_list()
     }
+
+    fn is_goat_tx(&self) -> bool {
+        self.transaction.is_goat_tx()
+    }
+
+    fn deposit(&self) -> Option<alloy_consensus::transaction::goat_types::Mint> {
+        self.transaction.deposit()
+    }
+
+    fn withdraw(&self) -> Option<alloy_consensus::transaction::goat_types::Mint> {
+        self.transaction.withdraw()
+    }
 }
 
 impl From<Signed<Transaction>> for TransactionSigned {
@@ -450,6 +491,7 @@ impl From<TransactionSigned> for EthereumTxEnvelope<TxEip4844> {
             Transaction::Eip1559(tx) => Signed::new_unchecked(tx, signature, hash).into(),
             Transaction::Eip4844(tx) => Signed::new_unchecked(tx, signature, hash).into(),
             Transaction::Eip7702(tx) => Signed::new_unchecked(tx, signature, hash).into(),
+            Transaction::Goat(tx) => Signed::new_unchecked(tx, signature, hash).into(),
         }
     }
 }
@@ -532,6 +574,10 @@ impl Decodable2718 for TransactionSigned {
                     signature,
                     hash: Default::default(),
                 })
+            }
+            TxType::Goat => {
+                let (tx, signature) = TxGoat::rlp_decode_with_signature(buf)?;
+                Ok(Self { transaction: Transaction::Goat(tx), signature, hash: Default::default() })
             }
         }
     }
@@ -642,6 +688,10 @@ impl reth_codecs::Compact for TransactionSigned {
 
 impl SignerRecoverable for TransactionSigned {
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
+        if self.is_goat() {
+            return Ok(self.transaction.sender().expect("goat tx sender is none"));
+        }
+
         let signature_hash = self.signature_hash();
         recover_signer(&self.signature, signature_hash)
     }

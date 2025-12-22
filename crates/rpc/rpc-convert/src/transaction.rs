@@ -534,6 +534,8 @@ impl TryIntoTxEnv<TxEnv> for TransactionRequest {
         let tx_type = self.minimal_tx_type() as u8;
 
         let Self {
+            module,
+            action,
             from,
             to,
             gas_price,
@@ -579,6 +581,9 @@ impl TryIntoTxEnv<TxEnv> for TransactionRequest {
         let nonce = nonce.unwrap_or_default();
 
         let env = TxEnv {
+            module: module.unwrap_or(0),
+            action: action.unwrap_or(0),
+            goat: None,
             tx_type,
             gas_limit,
             nonce,

@@ -448,6 +448,9 @@ impl From<BlockExecutionError> for EthApiError {
             BlockExecutionError::Internal(internal_error) => {
                 Self::Internal(RethError::Execution(BlockExecutionError::Internal(internal_error)))
             }
+            BlockExecutionError::Goat(err) => {
+                Self::Internal(RethError::Execution(BlockExecutionError::Goat(err)))
+            }
         }
     }
 }
