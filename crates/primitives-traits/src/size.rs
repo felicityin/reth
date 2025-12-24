@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use alloy_consensus::{
     transaction::TxEip4844Sidecar, EthereumTxEnvelope, Header, TxEip1559, TxEip2930, TxEip4844,
-    TxEip4844Variant, TxEip4844WithSidecar, TxEip7702, TxLegacy, TxType,
+    TxEip4844Variant, TxEip4844WithSidecar, TxEip7702, TxGoat, TxLegacy, TxType,
 };
 use alloy_eips::eip4895::Withdrawals;
 use alloy_primitives::{LogData, Signature, TxHash, B256};
@@ -50,7 +50,7 @@ macro_rules! impl_in_mem_size {
     };
 }
 
-impl_in_mem_size!(Header, TxLegacy, TxEip2930, TxEip1559, TxEip7702, TxEip4844);
+impl_in_mem_size!(Header, TxLegacy, TxEip2930, TxEip1559, TxEip7702, TxEip4844, TxGoat);
 
 impl<T: TxEip4844Sidecar> InMemorySize for TxEip4844Variant<T> {
     #[inline]
@@ -98,6 +98,7 @@ impl<T: InMemorySize> InMemorySize for EthereumTxEnvelope<T> {
             Self::Eip1559(tx) => tx.size(),
             Self::Eip4844(tx) => tx.size(),
             Self::Eip7702(tx) => tx.size(),
+            Self::Goat(tx) => tx.size(),
         }
     }
 }

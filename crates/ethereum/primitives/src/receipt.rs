@@ -376,6 +376,7 @@ where
             TxType::Eip1559 => Self::Eip1559(receipt),
             TxType::Eip4844 => Self::Eip4844(receipt),
             TxType::Eip7702 => Self::Eip7702(receipt),
+            TxType::Goat => Self::Goat(receipt),
         }
     }
 }

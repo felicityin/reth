@@ -266,7 +266,7 @@ pub fn validate_4844_header_standalone<H: BlockHeader>(
 #[inline]
 pub fn validate_header_extra_data<H: BlockHeader>(header: &H) -> Result<(), ConsensusError> {
     let extra_data_len = header.extra_data().len();
-    if extra_data_len > MAXIMUM_EXTRA_DATA_SIZE {
+    if extra_data_len > MAXIMUM_EXTRA_DATA_SIZE + 2 {
         Err(ConsensusError::ExtraDataExceedsMax { len: extra_data_len })
     } else {
         Ok(())

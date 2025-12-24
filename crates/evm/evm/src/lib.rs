@@ -5,7 +5,7 @@
 //! This crate does __not__ enforce specific revm features such as `blst` or `c-kzg`, which are
 //! critical for revm's evm internals, it is the responsibility of the implementer to ensure the
 //! proper features are selected.
-
+#![allow(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
@@ -40,6 +40,11 @@ use revm::{context::TxEnv, database::State};
 pub mod either;
 /// EVM environment configuration.
 pub mod execute;
+
+/// Goat EVM environment configuration.
+pub mod execute_goat;
+/// Goat types.
+pub mod goat_types;
 
 mod aliases;
 pub use aliases::*;
@@ -442,7 +447,7 @@ pub trait ConfigureEvm: Clone + Debug + Send + Sync + Unpin {
         &self,
         db: DB,
     ) -> impl Executor<DB, Primitives = Self::Primitives, Error = BlockExecutionError> {
-        BasicBlockExecutor::new(self, db)
+        BasicBlockExecutor::new(self, db, None)
     }
 
     /// Returns a new [`BasicBlockExecutor`].
@@ -451,7 +456,7 @@ pub trait ConfigureEvm: Clone + Debug + Send + Sync + Unpin {
         &self,
         db: DB,
     ) -> impl Executor<DB, Primitives = Self::Primitives, Error = BlockExecutionError> {
-        BasicBlockExecutor::new(self, db)
+        BasicBlockExecutor::new(self, db, None)
     }
 }
 
